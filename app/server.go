@@ -5,6 +5,7 @@ import (
 	"net"
 	"os"
 	"regexp"
+	"unicode/utf8"
 )
 
 func main() {
@@ -27,12 +28,20 @@ func main() {
 
 	buffer := make([]byte, 1024)
 	conn.Read(buffer)
+	request := string(buffer)
 
 	targetRegex := regexp.MustCompile(`^GET (.*) HTTP/1.1`)
-	target := targetRegex.FindStringSubmatch(string(buffer))[1]
+	target := targetRegex.FindStringSubmatch(request)[1]
 
 	if target == "/" {
 		fmt.Fprintf(conn, "HTTP/1.1 200 OK\r\n\r\n")
+	}
+
+	echoRegex := regexp.MustCompile(`/echo/(.*)`)
+	echo := echoRegex.FindStringSubmatch(target)
+
+	if echo != nil {
+		fmt.Fprintf(conn, "HTTP/1.1 200 OK\r\nContent-type: text/plain\r\nContent-Length: %d\r\n\r\n%s", utf8.RuneCountInString(echo[1]), echo[1])
 	}
 
 	fmt.Fprintf(conn, "HTTP/1.1 404 Not Found\r\n\r\n")
