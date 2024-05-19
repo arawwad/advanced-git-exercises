@@ -30,11 +30,17 @@ func main() {
 	conn.Read(buffer)
 	request := string(buffer)
 
-	targetRegex := regexp.MustCompile(`^GET (.*) HTTP/1.1`)
-	target := targetRegex.FindStringSubmatch(request)[1]
+	requestParser := regexp.MustCompile(`^GET (.*) HTTP/1\.1(?s).*User-Agent: (\S+)`)
+	parsedRquest := requestParser.FindStringSubmatch(request)
+	target := parsedRquest[1]
+	userAgent := parsedRquest[2]
 
 	if target == "/" {
 		fmt.Fprintf(conn, "HTTP/1.1 200 OK\r\n\r\n")
+	}
+
+	if target == "/user-agent" {
+		fmt.Fprintf(conn, "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s", utf8.RuneCountInString(userAgent), userAgent)
 	}
 
 	echoRegex := regexp.MustCompile(`/echo/(.*)`)
