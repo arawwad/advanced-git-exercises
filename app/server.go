@@ -5,6 +5,7 @@ import (
 	"net"
 	"os"
 	"regexp"
+	"strings"
 	"unicode/utf8"
 )
 
@@ -30,24 +31,27 @@ func main() {
 	conn.Read(buffer)
 	request := string(buffer)
 
-	requestParser := regexp.MustCompile(`^GET (.*) HTTP/1\.1(?s).*User-Agent: (\S+)`)
-	parsedRquest := requestParser.FindStringSubmatch(request)
-	target := parsedRquest[1]
-	userAgent := parsedRquest[2]
+	targetRegex := regexp.MustCompile(`^GET (.*) HTTP/1\.1`)
+	target := targetRegex.FindStringSubmatch(request)[1]
 
 	if target == "/" {
 		fmt.Fprintf(conn, "HTTP/1.1 200 OK\r\n\r\n")
 	}
 
-	if target == "/user-agent" {
-		fmt.Fprintf(conn, "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s", utf8.RuneCountInString(userAgent), userAgent)
+	if strings.HasPrefix(target, "/echo/") {
+		echoRegex := regexp.MustCompile(`/echo/(.*)`)
+		echo := echoRegex.FindStringSubmatch(target)
+
+		if echo != nil {
+			fmt.Fprintf(conn, "HTTP/1.1 200 OK\r\nContent-type: text/plain\r\nContent-Length: %d\r\n\r\n%s", utf8.RuneCountInString(echo[1]), echo[1])
+		}
+		fmt.Fprintf(conn, "HTTP/1.1 400 BAD REQUEST\r\n\r\n")
 	}
 
-	echoRegex := regexp.MustCompile(`/echo/(.*)`)
-	echo := echoRegex.FindStringSubmatch(target)
-
-	if echo != nil {
-		fmt.Fprintf(conn, "HTTP/1.1 200 OK\r\nContent-type: text/plain\r\nContent-Length: %d\r\n\r\n%s", utf8.RuneCountInString(echo[1]), echo[1])
+	if target == "/user-agent" {
+		userAgentRegex := regexp.MustCompile(`User-Agent: (\S+)`)
+		userAgent := userAgentRegex.FindStringSubmatch(request)[1]
+		fmt.Fprintf(conn, "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s", utf8.RuneCountInString(userAgent), userAgent)
 	}
 
 	fmt.Fprintf(conn, "HTTP/1.1 404 Not Found\r\n\r\n")
