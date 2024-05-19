@@ -35,16 +35,19 @@ func main() {
 func handleRequest(conn net.Conn, directory string) {
 	buffer := make([]byte, 1024)
 	conn.Read(buffer)
-	request := string(buffer)
+	request := strings.TrimRight(string(buffer), "\x00")
 
-	targetRegex := regexp.MustCompile(`^GET (.*) HTTP/1\.1`)
-	target := targetRegex.FindStringSubmatch(request)[1]
+	fmt.Println(request)
 
-	if target == "/" {
+	requestRegex := regexp.MustCompile(`^(GET|POST) (.*) HTTP/1\.1`)
+	parsedRequest := requestRegex.FindStringSubmatch(request)
+
+	verb := parsedRequest[1]
+	target := parsedRequest[2]
+
+	if verb == "GET" && target == "/" {
 		fmt.Fprintf(conn, "HTTP/1.1 200 OK\r\n\r\n")
-	}
-
-	if strings.HasPrefix(target, "/echo/") {
+	} else if verb == "GET" && strings.HasPrefix(target, "/echo/") {
 		echoRegex := regexp.MustCompile(`/echo/(.*)`)
 		echo := echoRegex.FindStringSubmatch(target)
 
@@ -52,15 +55,11 @@ func handleRequest(conn net.Conn, directory string) {
 			fmt.Fprintf(conn, "HTTP/1.1 200 OK\r\nContent-type: text/plain\r\nContent-Length: %d\r\n\r\n%s", utf8.RuneCountInString(echo[1]), echo[1])
 		}
 		fmt.Fprintf(conn, "HTTP/1.1 400 BAD REQUEST\r\n\r\n")
-	}
-
-	if target == "/user-agent" {
+	} else if verb == "GET" && target == "/user-agent" {
 		userAgentRegex := regexp.MustCompile(`User-Agent: (\S+)`)
 		userAgent := userAgentRegex.FindStringSubmatch(request)[1]
 		fmt.Fprintf(conn, "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s", utf8.RuneCountInString(userAgent), userAgent)
-	}
-
-	if strings.HasPrefix(target, "/files/") {
+	} else if verb == "GET" && strings.HasPrefix(target, "/files/") {
 		fileNameRegex := regexp.MustCompile(`/files/(.*)`)
 		fileName := fileNameRegex.FindStringSubmatch(target)
 
@@ -71,11 +70,23 @@ func handleRequest(conn net.Conn, directory string) {
 			if file != nil {
 				fmt.Fprintf(conn, "HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\nContent-Length: %d\r\n\r\n%s", utf8.RuneCountInString(str), str)
 			}
-
+			fmt.Fprintf(conn, "HTTP/1.1 404 Not Found\r\n\r\n")
 		}
+	} else if verb == "POST" && strings.HasPrefix(target, "/files/") {
+		fileNameRegex := regexp.MustCompile(`/files/(.*)`)
+		fileName := fileNameRegex.FindStringSubmatch(target)
+		bodyRegex := regexp.MustCompile(`\r\n(.*)$`)
+		body := bodyRegex.FindStringSubmatch(request)
 
+		if fileName != nil && body != nil {
+			error := os.WriteFile(fmt.Sprintf("%s/%s", directory, fileName[1]), []byte(body[1]), 0666)
+			fmt.Println(error)
+
+			if error == nil {
+				fmt.Fprintf(conn, "HTTP/1.1 201 Created\r\nContent-Length:%d\r\n\r\n%s", utf8.RuneCountInString(body[1]), body[1])
+			}
+		}
+	} else {
 		fmt.Fprintf(conn, "HTTP/1.1 404 Not Found\r\n\r\n")
 	}
-
-	fmt.Fprintf(conn, "HTTP/1.1 404 Not Found\r\n\r\n")
 }
