@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"regexp"
+	"strings"
 )
 
 type request string
@@ -38,7 +39,7 @@ func (r request) getTarget() (string, error) {
 
 func (r request) getHeader(header string) (string, error) {
 	reqString := string(r)
-	regex, regexError := regexp.Compile(fmt.Sprintf(`(?i)%s: (\S+)`, header))
+	regex, regexError := regexp.Compile(fmt.Sprintf(`(?i)%s: (.*)\r\n`, header))
 
 	if regexError != nil {
 		panic(fmt.Sprintf("something is wrong with header: %s", regexError))
@@ -54,16 +55,11 @@ func (r request) getHeader(header string) (string, error) {
 }
 
 func (r request) getContentEncoding() string {
-	acceptedFormats := []string{
-		"gzip",
-		"Brotli",
-	}
+
 	encoding, _ := r.getHeader("Accept-Encoding")
 
-	for _, v := range acceptedFormats {
-		if v == encoding {
-			return encoding
-		}
+	if strings.Contains(encoding, "gzip") {
+		return "gzip"
 	}
 
 	return ""
