@@ -1,6 +1,8 @@
 package main
 
 import (
+	"bytes"
+	"compress/gzip"
 	"flag"
 	"fmt"
 	"net"
@@ -48,10 +50,23 @@ func main() {
 
 		if acceptEncodingHeader != "" {
 			encodingResponseHeader = fmt.Sprintf("Content-Encoding: %s\r\n", acceptEncodingHeader)
+
 		}
 
 		if echo != nil {
-			fmt.Fprintf(c, "HTTP/1.1 200 OK\r\n%sContent-type: text/plain\r\nContent-Length: %d\r\n\r\n%s", encodingResponseHeader, utf8.RuneCountInString(echo[1]), echo[1])
+
+			response := echo[1]
+
+			if acceptEncodingHeader == "gzip" {
+
+				var buff bytes.Buffer
+				zw := gzip.NewWriter(&buff)
+				zw.Write([]byte(response))
+				zw.Close()
+				response = buff.String()
+			}
+
+			fmt.Fprintf(c, "HTTP/1.1 200 OK\r\n%sContent-type: text/plain\r\nContent-Length: %d\r\n\r\n%s", encodingResponseHeader, utf8.RuneCountInString(response), response)
 		}
 		fmt.Fprintf(c, "HTTP/1.1 400 BAD REQUEST\r\n\r\n")
 	})
